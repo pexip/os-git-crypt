@@ -1,0 +1,27 @@
+Subject: Use OpenSSL version numbers to pick the compat layer
+Author: Simon Chopin <simon.chopin@canonical.com>
+
+OPENSSL_API_COMPAT doesn't ensure we have the necessary API exposed. Using
+OPENSSL_VERSION_NUMBER makes things a bit easier with new versions of OpenSSL.
+--- a/crypto-openssl-11.cpp
++++ b/crypto-openssl-11.cpp
+@@ -30,7 +30,7 @@
+ 
+ #include <openssl/opensslconf.h>
+ 
+-#if defined(OPENSSL_API_COMPAT)
++#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+ 
+ #include "crypto.hpp"
+ #include "key.hpp"
+--- a/crypto-openssl-10.cpp
++++ b/crypto-openssl-10.cpp
+@@ -30,7 +30,7 @@
+ 
+ #include <openssl/opensslconf.h>
+ 
+-#if !defined(OPENSSL_API_COMPAT)
++#if OPENSSL_VERSION_NUMBER < 0x10100000L
+ 
+ #include "crypto.hpp"
+ #include "key.hpp"
