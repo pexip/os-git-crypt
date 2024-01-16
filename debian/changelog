@@ -1,5 +1,6 @@
 git-crypt (0.7.0-0.1pexip1) pexip; urgency=medium
 
+  * Add openssl 3 compatability patch.
   * Prepare Pexip packaging
 
  -- Vincent Sanders <vince@pexip.com>  Tue, 16 Jan 2024 15:32:53 +0000

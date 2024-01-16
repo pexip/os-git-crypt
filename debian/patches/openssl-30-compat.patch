@@ -1,0 +1,170 @@
+--- a/crypto-openssl-11.cpp
++++ b/crypto-openssl-11.cpp
+@@ -30,7 +30,7 @@
+ 
+ #include <openssl/opensslconf.h>
+ 
+-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
++#if OPENSSL_VERSION_NUMBER >= 0x10100000L && OPENSSL_VERSION_NUMBER < 0x30000000L
+ 
+ #include "crypto.hpp"
+ #include "key.hpp"
+--- a/Makefile
++++ b/Makefile
+@@ -24,7 +24,7 @@
+     coprocess.o \
+     fhstream.o
+ 
+-OBJFILES += crypto-openssl-10.o crypto-openssl-11.o
++OBJFILES += crypto-openssl-10.o crypto-openssl-11.o crypto-openssl-30.o
+ LDFLAGS += -lcrypto
+ 
+ XSLTPROC ?= xsltproc
+--- /dev/null
++++ b/crypto-openssl-30.cpp
+@@ -0,0 +1,145 @@
++/*
++ * Copyright 2012, 2014 Andrew Ayer
++ *
++ * This file is part of git-crypt.
++ *
++ * git-crypt is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * git-crypt is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with git-crypt.  If not, see <http://www.gnu.org/licenses/>.
++ *
++ * Additional permission under GNU GPL version 3 section 7:
++ *
++ * If you modify the Program, or any covered work, by linking or
++ * combining it with the OpenSSL project's OpenSSL library (or a
++ * modified version of that library), containing parts covered by the
++ * terms of the OpenSSL or SSLeay licenses, the licensors of the Program
++ * grant you additional permission to convey the resulting work.
++ * Corresponding Source for a non-source form of such a combination
++ * shall include the source code for the parts of OpenSSL used as well
++ * as that of the covered work.
++ */
++
++#include <openssl/opensslconf.h>
++
++#if OPENSSL_VERSION_NUMBER >= 0x30000000L
++
++#include "crypto.hpp"
++#include "key.hpp"
++#include "util.hpp"
++#include <openssl/evp.h>
++#include <openssl/rand.h>
++#include <openssl/err.h>
++#include <sstream>
++#include <cstring>
++
++void init_crypto ()
++{
++}
++
++struct Aes_ecb_encryptor::Aes_impl {
++	EVP_CIPHER_CTX *ctx;
++};
++
++Aes_ecb_encryptor::Aes_ecb_encryptor (const unsigned char* raw_key)
++: impl(new Aes_impl)
++{
++
++	impl->ctx = EVP_CIPHER_CTX_new();
++	if(impl->ctx == NULL) {
++		throw Crypto_error("Aes_ctr_encryptor::Aes_ctr_encryptor", "EVP_CIPHER_CTX_new failed");
++	}
++
++	/* convert key length into cipher specifier */
++	const EVP_CIPHER *cipher=NULL;
++	switch (KEY_LEN) {
++	case 16: /* 128 bits */
++		cipher = EVP_aes_128_ecb();
++		break;
++	case 24: /* 192 bits */
++		cipher = EVP_aes_192_ecb();
++		break;
++	case 32: /* 256 bits */
++		cipher = EVP_aes_256_ecb();
++		break;
++	default:
++		throw Crypto_error("Aes_ctr_encryptor::Aes_ctr_encryptor", "Unknown AES cipher key length");
++	}
++
++
++	if (EVP_EncryptInit_ex(impl->ctx, cipher, NULL, raw_key, NULL) != 1) {
++		throw Crypto_error("Aes_ctr_encryptor::Aes_ctr_encryptor", "EVP_EncryptInit_ex failed");
++	}
++}
++
++Aes_ecb_encryptor::~Aes_ecb_encryptor ()
++{
++	EVP_CIPHER_CTX_free(impl->ctx);
++}
++
++void Aes_ecb_encryptor::encrypt(const unsigned char* plain, unsigned char* cipher)
++{
++	int len;
++	// TODO: original implementation did not check error code, this should
++	EVP_EncryptUpdate(impl->ctx, cipher, &len, plain, 16);
++}
++
++struct Hmac_sha1_state::Hmac_impl {
++	EVP_MAC *mac;
++	EVP_MAC_CTX *ctx;
++};
++
++Hmac_sha1_state::Hmac_sha1_state (const unsigned char* key, size_t key_len)
++: impl(new Hmac_impl)
++{
++	OSSL_PARAM params[2];
++	char digest_name[] = "SHA1";
++	params[0] = OSSL_PARAM_construct_utf8_string("digest", digest_name, 0);
++	params[1] = OSSL_PARAM_construct_end();
++
++	impl->mac = EVP_MAC_fetch(NULL, "HMAC", NULL);
++	impl->ctx = EVP_MAC_CTX_new(impl->mac);
++	EVP_MAC_init(impl->ctx, key, key_len, params);
++}
++
++Hmac_sha1_state::~Hmac_sha1_state ()
++{
++	EVP_MAC_CTX_free(impl->ctx);
++	EVP_MAC_free(impl->mac);
++}
++
++void Hmac_sha1_state::add (const unsigned char* buffer, size_t buffer_len)
++{
++	EVP_MAC_update(impl->ctx, buffer, buffer_len);
++}
++
++void Hmac_sha1_state::get (unsigned char* digest)
++{
++	// TODO: original implementation did not check error code, this should
++	size_t final_l;
++	EVP_MAC_final(impl->ctx, digest, &final_l, Hmac_sha1_state::LEN);
++}
++
++
++void random_bytes (unsigned char* buffer, size_t len)
++{
++	if (RAND_bytes(buffer, len) != 1) {
++		std::ostringstream	message;
++		while (unsigned long code = ERR_get_error()) {
++			char		error_string[120];
++			ERR_error_string_n(code, error_string, sizeof(error_string));
++			message << "OpenSSL Error: " << error_string << "; ";
++		}
++		throw Crypto_error("random_bytes", message.str());
++	}
++}
++
++#endif
