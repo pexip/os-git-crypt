@@ -114,7 +114,7 @@
 +{
 +	int len;
 +	// TODO: original implementation did not check error code, this should
-+	EVP_EncryptUpdate(impl->ctx, cipher, &len, plain, 16);
++	EVP_EncryptUpdate(impl->ctx, cipher, &len, plain, BLOCK_LEN);
 +}
 +
 +struct Hmac_sha1_state::Hmac_impl {
