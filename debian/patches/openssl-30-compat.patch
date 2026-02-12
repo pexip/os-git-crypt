@@ -1,3 +1,5 @@
+Replace use of APIs which were deprecated in OpenSSL 3
+
 --- a/crypto-openssl-11.cpp
 +++ b/crypto-openssl-11.cpp
 @@ -30,7 +30,7 @@
